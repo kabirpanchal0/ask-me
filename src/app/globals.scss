@@ -1,0 +1,135 @@
+@use "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Anonymous+Pro:ital,wght@0,400;0,700;1,400;1,700&family=Iosevka+Charon:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Manrope:wght@200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap');
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --font-lora: "Lora", serif;
+  --font-fredoka: "Fredoka", sans-serif;
+  --font-iosevka-charon: "Iosevka Charon", monospace;
+  --font-anonymous-pro: "Anonymous Pro", monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+
+/* Theme attribute overrides — toggled via `data-theme` on <html> */
+[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+/* Smooth color transitions */
+html,
+body {
+  transition: background-color 180ms linear, color 180ms linear;
+}
+
+/* Component-specific variables */
+:root {
+  --panel-bg: #0b0b0b;
+  --panel-text: #ededed;
+  --input-bg: #111111;
+  --input-text: #ffffff;
+  --border-color: rgba(255, 255, 255, 0.08);
+
+  --bubble-bg-user: #ffffff;
+  --bubble-text-user: #000000;
+  --bubble-bg-assistant: #0b0b0b;
+  --bubble-text-assistant: #ffffff;
+
+  /* Headings & code colors (default) */
+  --heading-user: #0b1220;
+  --heading-assistant: #0b4f8a;
+  --code-text: #111827;
+  --code-bg: #f5f7fa;
+  --inline-code-bg: #f3f4f6;
+  --inline-code-text: #111827;
+}
+
+[data-theme="light"] {
+  --panel-bg: #f3f3f3;
+  --panel-text: #101010;
+  --input-bg: #ffffff;
+  --input-text: #111111;
+  --border-color: rgba(0, 0, 0, 0.08);
+
+  --bubble-bg-user: #f2f2f2;
+  --bubble-text-user: #000000;
+  --bubble-bg-assistant: #f2f2f2;
+  --bubble-text-assistant: #111111;
+  --button-bg: #ffffff;
+
+  /* Headings & code colors (light) */
+  --heading-user: #0b1220;
+  --heading-assistant: #0b4f8a;
+  --code-text: #0f1724;
+  --code-bg: #f5f7fa;
+  --inline-code-bg: #f3f4f6;
+  --inline-code-text: #0f1724;
+}
+
+[data-theme="dark"] {
+  --panel-bg: #292929;
+  --panel-text: #ededed;
+  --input-bg: #111111;
+  --input-text: #ffffff;
+  --border-color: rgba(255, 255, 255, 0.08);
+
+  --bubble-bg-user: #242424;
+  --bubble-text-user: #ffffff;
+  --bubble-bg-assistant: #242424;
+  --bubble-text-assistant: #ffffff;
+  --button-bg: #000000;
+  --button-text: #ffffff;
+
+  /* Headings & code colors (dark) */
+  --heading-user: #e6f0ff;
+  --heading-assistant: #cfe8ff;
+  --code-text: #e6eef8;
+  --code-bg: #0b1220;
+  --inline-code-bg: rgba(255, 255, 255, 0.04);
+  --inline-code-text: #e6eef8;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-lora) !important;
+}
+
+span,
+p,
+strong,
+em,
+ul,
+li,
+textarea,
+input {
+  font-family: var(--font-fredoka) !important
+}
