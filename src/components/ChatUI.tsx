@@ -5,15 +5,28 @@ import PromptBar from "./ui/PromptBar";
 import Markdown from "react-markdown";
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { Copy, Pencil, RefreshCw } from "lucide-react";
+import { Check, Copy, Pencil, RefreshCw } from "lucide-react";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useEffect } from 'react';
 import { useCallback } from 'react';
 
+interface SentimentAnalysis {
+    text: string;
+    label: "POSITIVE" | "NEGATIVE";
+    confidence: number;
+}
+
+interface Message {
+    role: "user" | "assistant";
+    content: string;
+    sentiment?: SentimentAnalysis;
+}
+
 export default function ChatUI() {
-    const [messages, setMessages] = useState<any>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [input, setInput] = useState<string>("");
     const [thinking, setThinking] = useState<boolean>(false);
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -25,34 +38,123 @@ export default function ChatUI() {
         }
     });
 
-    console.log('messages', messages)
-
     const sendMessage = async (text: string) => {
-        const newMessages = [...messages, { role: "user", content: text }];
-        setMessages(newMessages);
         setThinking(true);
 
+        // Get sentiment analysis for user message
+        const sentiment = await getSentiment(text);
+
+        const newMessage: Message = {
+            role: "user",
+            content: text,
+            sentiment: sentiment || undefined
+        };
+        
+        // Create assistant response with sentiment summary
+        let assistantResponse = "";
+        if (sentiment) {
+            const emoji = sentiment.label === "POSITIVE" ? "😊" : "😔";
+            const confidencePercent = (sentiment.confidence * 100).toFixed(1);
+            assistantResponse = `${emoji} Your message has a **${sentiment.label.toLowerCase()}** sentiment with ${confidencePercent}% confidence.`;
+        } else {
+            assistantResponse = "Unable to analyze sentiment at this time.";
+        }
+        
+        const assistantMessage: Message = {
+            role: "assistant",
+            content: assistantResponse
+        };
+        
+        setMessages([...messages, newMessage, assistantMessage]);
+
+        setThinking(false);
+    }
+
+    const getSentiment = async (userText: string): Promise<SentimentAnalysis | null> => {
+        setIsLoading(true);
         try {
-            const res = await fetch("http://localhost:4545/api/chat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: newMessages }),
+            const response = await fetch('http://127.0.0.1:8001/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: userText }),
             });
 
-            const data = await res.json();
-
-            // data.reply is expected to be { role, content }
-            const assistantMsg = data?.reply || { role: "assistant", content: String(data) };
-            setMessages((prev: any) => [...newMessages, assistantMsg]);
-        } catch (err) {
-            console.error('sendMessage error', err);
-            setMessages((prev: any) => [...newMessages, { role: 'assistant', content: 'Error: failed to get response' }]);
+            const data = await response.json();
+            console.log("AI Analysis:", data);
+            return data;
+        } catch (error) {
+            console.error("Sentiment analysis error:", error);
+            return null;
         } finally {
-            setThinking(false);
+            setIsLoading(false);
         }
     }
 
-    console.log('messages', messages)
+    const handleSummarize = async (longText: string) => {
+        setThinking(true);
+        
+        // Add user message
+        const userMessage: Message = {
+            role: "user",
+            content: longText
+        };
+        
+        setMessages(prev => [...prev, userMessage]);
+        
+        // Get sentiment analysis
+        const sentiment = await getSentiment(longText);
+        
+        // Update user message with sentiment
+        if (sentiment) {
+            setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...updated[updated.length - 1], sentiment };
+                return updated;
+            });
+        }
+        
+        // Get summary
+        try {
+            const res = await fetch('http://127.0.0.1:8001/summarize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: longText }),
+            });
+
+            const data = await res.json();
+            console.log("Summary:", data.summary);
+
+            // Add assistant message with summary
+            const assistantMessage: Message = {
+                role: "assistant",
+                content: data.summary
+            };
+            
+            setMessages(prev => [...prev, assistantMessage]);
+        } catch (error) {
+            console.error("Summarization error:", error);
+            const errorMessage: Message = {
+                role: "assistant",
+                content: "Unable to generate summary at this time."
+            };
+            setMessages(prev => [...prev, errorMessage]);
+        } finally {
+            setThinking(false);
+        }
+    };
+
+    console.log('data', messages)
+
+    const updateMessageSentiment = async (index: number, text: string) => {
+        const sentiment = await getSentiment(text);
+        setMessages(prev => {
+            const updated = [...prev];
+            updated[index] = { ...updated[index], sentiment: sentiment || undefined };
+            return updated;
+        });
+    }
 
     useEffect(() => {
         const root = document?.documentElement;
@@ -125,30 +227,9 @@ export default function ChatUI() {
                                                 <div className="relative">
                                                     {isUser ? (
                                                         <>
-                                                            <Markdown
-                                                                components={{
-                                                                    h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-2" {...props} />,
-                                                                    h2: ({ node, ...props }) => <h2 className="text-lg font-semibold mb-2" {...props} />,
-                                                                    p: ({ node, ...props }) => <div className={isUser ? 'text-md' : 'mb-2'} {...props} style={isUser ? { fontFamily: "var(--font-iosevka-charon)" } : {}} />,
-                                                                    ul: ({ node, ...props }) => <ul className="mb-4" {...props} />,
-                                                                    li: ({ node, ...props }) => <li className="ml-4 list-disc" {...props} />,
-                                                                    code: ({ inline, className, children, ...props }: any) => {
-                                                                        const match = /language-(\w+)/.exec(className || '') || [];
-                                                                        if (inline) {
-                                                                            return <code className="px-1 rounded text-sm" style={{ background: 'rgba(0,0,0,0.12)' }} {...props}>{children}</code>;
-                                                                        }
-                                                                        return <CodeBlock language={match[1] || ''} value={String(children).replace(/\n$/, '')} />;
-                                                                    },
-                                                                }}
-                                                                remarkPlugins={[remarkGfm]}
-                                                                rehypePlugins={[rehypeRaw]}
-                                                            >
-                                                                {m.content}
-                                                            </Markdown>
-
-                                                            <div className="mt-4 flex gap-4 justify-end text-xs">
+                                                            <div className="mb-4 flex gap-4 justify-end text-xs">
                                                                 {copiedIndex === i ? (
-                                                                    <div className="text-xs font-semibold">Copied!</div>
+                                                                    <div className="text-xs font-semibold"><Check size={14} /></div>
                                                                 ) :
                                                                     <button
                                                                         onClick={async () => {
@@ -174,18 +255,38 @@ export default function ChatUI() {
                                                                     <Pencil size={14} />
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => sendMessage(m.content)}
+                                                                    onClick={() => updateMessageSentiment(i, m.content)}
                                                                     className="cursor-pointer hover:rotate-180 transition-all duration-300"
                                                                 >
                                                                     <RefreshCw size={14} />
                                                                 </button>
                                                             </div>
+                                                            <Markdown
+                                                                components={{
+                                                                    h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-2" {...props} />,
+                                                                    h2: ({ node, ...props }) => <h2 className="text-lg font-semibold mb-2" {...props} />,
+                                                                    p: ({ node, ...props }) => <div className={isUser ? 'text-md' : 'mb-2'} {...props} style={isUser ? { fontFamily: "var(--font-iosevka-charon)" } : {}} />,
+                                                                    ul: ({ node, ...props }) => <ul className="mb-4" {...props} />,
+                                                                    li: ({ node, ...props }) => <li className="ml-4 list-disc" {...props} />,
+                                                                    code: ({ inline, className, children, ...props }: any) => {
+                                                                        const match = /language-(\w+)/.exec(className || '') || [];
+                                                                        if (inline) {
+                                                                            return <code className="px-1 rounded text-sm" style={{ background: 'rgba(0,0,0,0.12)' }} {...props}>{children}</code>;
+                                                                        }
+                                                                        return <CodeBlock language={match[1] || ''} value={String(children).replace(/\n$/, '')} />;
+                                                                    },
+                                                                }}
+                                                                remarkPlugins={[remarkGfm]}
+                                                                rehypePlugins={[rehypeRaw]}
+                                                            >
+                                                                {m.content}
+                                                            </Markdown>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <div className="absolute top-0 right-0">
+                                                            <div className="ml-auto w-fit">
                                                                 {copiedIndex === i ? (
-                                                                    <div className="text-xs font-semibold mt-1">Copied!</div>
+                                                                    <div className="text-xs font-semibold mt-1"><Check size={14} /></div>
                                                                 )
                                                                     :
                                                                     <button
@@ -226,6 +327,48 @@ export default function ChatUI() {
                                                         </>
                                                     )}
                                                 </div>
+
+                                                {/* Sentiment Analysis for this message */}
+                                                {isUser && m.sentiment && (
+                                                    <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                                                        <div className="flex items-center gap-3">
+                                                            <span
+                                                                className="px-2 py-1 rounded-full text-[10px] font-semibold"
+                                                                style={{
+                                                                    background: m.sentiment.label === 'POSITIVE'
+                                                                        ? 'rgba(34, 197, 94, 0.2)'
+                                                                        : 'rgba(239, 68, 68, 0.2)',
+                                                                    color: m.sentiment.label === 'POSITIVE'
+                                                                        ? 'rgb(34, 197, 94)'
+                                                                        : 'rgb(239, 68, 68)'
+                                                                }}
+                                                            >
+                                                                {m.sentiment.label}
+                                                            </span>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div
+                                                                        className="h-1.5 rounded-full flex-1"
+                                                                        style={{ background: 'rgba(0,0,0,0.1)' }}
+                                                                    >
+                                                                        <div
+                                                                            className="h-1.5 rounded-full transition-all duration-500"
+                                                                            style={{
+                                                                                width: `${m.sentiment.confidence * 100}%`,
+                                                                                background: m.sentiment.label === 'POSITIVE'
+                                                                                    ? 'rgb(34, 197, 94)'
+                                                                                    : 'rgb(239, 68, 68)'
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                    <span className="text-[10px] font-mono opacity-70">
+                                                                        {(m.sentiment.confidence * 100).toFixed(1)}%
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )
@@ -235,8 +378,8 @@ export default function ChatUI() {
                             <div className="thinking text-center py-6">Thinking...</div>
                         ) : null
                     }
-                    <div className={messages.length > 0 ? "sticky bottom-0 mb-4 mx-4 w-[80%]" : "w-[80%]"}>
-                        <PromptBar input={input} setInput={setInput} onSend={sendMessage} loading={thinking} />
+                    <div className={messages.length > 0 ? "sticky bottom-0 mb-4 mx-4 sm:w-[80%] w-full" : "sm:w-[80%] w-full"}>
+                        <PromptBar input={input} setInput={setInput} onSend={handleSummarize} loading={thinking} />
                     </div>
                 </div>
             </div>

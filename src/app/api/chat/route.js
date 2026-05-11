@@ -29,14 +29,21 @@ export async function POST(req) {
     let completion;
     try {
         completion = await openai.chat.completions.create({
-            model: "gpt-5-nano",
+            model: "gpt-3.5-turbo",
             messages: messages,
-            store: true,
         });
     } catch (err) {
         console.error('OpenAI API error:', err);
         const status = err?.status || 500;
-        const message = err?.message || 'OpenAI API error';
+        let message = err?.message || 'OpenAI API error';
+        
+        // Provide helpful error messages
+        if (status === 429) {
+            message = 'OpenAI API quota exceeded. Please check your billing at https://platform.openai.com/account/billing';
+        } else if (status === 401) {
+            message = 'Invalid OpenAI API key. Please check your .env file';
+        }
+        
         return new Response(JSON.stringify({ error: message }), {
             status,
             headers: { 'Content-Type': 'application/json' },
